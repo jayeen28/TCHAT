@@ -1,3 +1,5 @@
 module.exports = {
-    emptyFunc: () => { }
+    func: () => { },
+    json: '{}',
+    obj: {}
 }
