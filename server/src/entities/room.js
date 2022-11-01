@@ -5,7 +5,7 @@ const room = async ({ roomId = undefined, action = 'join' }, socket, back) => {
             socket.leave(roomId);
             return back('room', { roomId, action })
         };
-        if (socket.adapter?.rooms?.has(roomId)) return back('error', { message: 'room already exists' })
+        [...socket.adapter.rooms].forEach(([k, v]) => { v.has(socket.id); socket.leave(k) });
         socket.join(roomId.toString());
         back('room', { roomId, action }, socket);
     }
