@@ -7,7 +7,7 @@ const room = async ({ roomId = undefined, action = 'join' }, socket, back) => {
         };
         [...socket.adapter.rooms].forEach(([k, v]) => { v.has(socket.id); socket.leave(k) });
         socket.join(roomId.toString());
-        back('room', { roomId, action }, socket);
+        back('room', { roomId, action });
     }
     catch (e) { console.log(e) }
 };
