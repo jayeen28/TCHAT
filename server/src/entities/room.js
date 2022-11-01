@@ -20,7 +20,7 @@ const room = async ({ roomId = undefined, action = 'join' }, socket, back) => {
          * Let's join
          */
         socket.join(roomId.toString());
-        back('room', { roomId, action });
+        back('room', { roomId, action, message: `You are now connected wtih "${roomId}" room.` });
     }
     catch (e) { console.log(e) }
 };
