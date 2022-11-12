@@ -1,71 +1,74 @@
 #! /usr/bin/env node
 
 const { io } = require('socket.io-client');
-const readline = require('readline').createInterface({ input: process.stdin });
+const util = require('util');
+const prompt = require('prompt');
+const { stdout } = require('process');
+
+const SCHEMAS = {
+    properties: {
+        userName: { description: 'Enter your username', name: 'username', pattern: /^[a-zA-Z0-9\-]+$/, message: 'Username must be only letters, numbers, or dashes' },
+        room: { description: 'Join or create room. \nType => join/create roomId and hit enter', name: 'room' }
+    }
+};
 
 class ChatEngine {
-    constructor(readline, io) {
-        this.readline = readline;
+    constructor(io) {
         this.io = io;
-        this.stage = 'userName';
+        this.stage = 'prep';
         this.userName = '';
         this.roomId = undefined;
         this.socket = undefined;
+        this.get = util.promisify(prompt.get);
     }
     log(str) { process.stdout.write(str) }
-    start() {
+    async start() {
         this.socket = this.io(process.env.socketURL || 'http://localhost:5000');
-        this.socket.on('connect', () => {
+        this.socket.on('connect', async () => {
             console.log('Connected with server.');
-            this.log('Enter your user name: ');
-            this.readline.on('line', line => this.manageInput(line))
+            stdout.destroy();
+            prompt.start();
+            prompt.message = '';
+            this.managePrep();
         });
 
         this.socket.on('room', data => {
             data = JSON.parse(data);
             this.roomId = data.roomId;
-            this.stage = 'message';
             console.log(data.message || 'Error with room.');
-            this.log('Message: ');
+            this.manageMessage();
         });
 
         this.socket.on('message', data => {
             console.log(`\n ${data}`);
-            this.log('Message: ');
-        })
+            this.manageMessage();
+        });
     }
-    manageInput(line) {
-        switch (this.stage) {
-            case 'userName': this.manageUserName(line); break;
-            case 'room': this.manageRoom(line); break;
-            case 'message': this.manageMessage(line); break;
-            default: this.manageUserName(line);
-        }
-    }
-    manageUserName(input) {
-        if (input.length < 1) {
-            console.log('Invalid user name. Please type user name and hit enter.');
-            return this.log('Enter your user name: ');
-        }
-        this.userName = input;
-        this.stage = 'room';
-        this.log(`Join or create room. \nType => join/create roomId and hit enter: `);
-    }
-    manageRoom(input) {
+    async managePrep() {
         try {
-            const parts = input.split(" ");
+            const { userName, room } = await this.get(SCHEMAS);
+            this.userName = userName;
+            const parts = room.split(" ");
             if (parts.length < 2 || (parts[0] !== 'join' && parts[0] !== 'create')) {
                 return console.log('Invalid input');
             }
             this.socket.emit('room', JSON.stringify({ roomId: parts[1], action: parts[0] }));
         }
         catch (e) { console.log(e) }
-    };
-    manageMessage(message) {
-        message = message + ' - ' + this.userName;
-        this.socket.emit('message', JSON.stringify({ roomId: this.roomId, message }));
+    }
+
+    async manageMessage() {
+        try {
+            stdout.destroy();
+            let { message } = await this.get({ description: 'Message', name: 'message' });
+            message = message + ' - ' + this.userName;
+            this.socket.emit('message', JSON.stringify({ roomId: this.roomId, message }));
+        }
+        catch (e) {
+            console.log(e)
+        }
     }
 };
 
-const chat = new ChatEngine(readline, io);
+const chat = new ChatEngine(io);
 chat.start();
