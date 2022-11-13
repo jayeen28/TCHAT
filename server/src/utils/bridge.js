@@ -1,8 +1,8 @@
-const { func, json, obj } = require("./defaultValues");
+const { func, obj } = require("./defaultValues");
 
 function bridge(socket) {
     return ({
-        go: async function (handler = func, data = json) {
+        go: async function (handler = func, data = obj) {
             try { handler(data, socket, this.back) }
             catch (e) { this.error(e) }
         },
