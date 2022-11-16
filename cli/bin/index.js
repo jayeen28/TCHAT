@@ -3,7 +3,6 @@
 const { io } = require('socket.io-client');
 const util = require('util');
 const prompt = require('prompt');
-const { stdout } = require('process');
 
 const SCHEMAS = {
     properties: {
@@ -21,28 +20,23 @@ class ChatEngine {
         this.socket = undefined;
         this.get = util.promisify(prompt.get);
     }
-    log(str) { process.stdout.write(str) }
     async start() {
         this.socket = this.io(process.env.socketURL || 'http://localhost:5000');
         this.socket.on('connect', async () => {
             console.log('Connected with server.');
-            stdout.destroy();
+            process.stdout.destroy();
             prompt.start();
             prompt.message = '';
             this.managePrep();
         });
 
         this.socket.on('room', data => {
-            data = JSON.parse(data);
             this.roomId = data.roomId;
             console.log(data.message || 'Error with room.');
             this.manageMessage();
         });
 
-        this.socket.on('message', data => {
-            console.log(`\n ${data}`);
-            this.manageMessage();
-        });
+        this.socket.on('message', message => console.log(`\n${message}`));
     }
     async managePrep() {
         try {
@@ -50,19 +44,23 @@ class ChatEngine {
             this.userName = userName;
             const parts = room.split(" ");
             if (parts.length < 2 || (parts[0] !== 'join' && parts[0] !== 'create')) {
-                return console.log('Invalid input');
+                this.managePrep();
+                return console.log('\nInvalid input');
             }
-            this.socket.emit('room', JSON.stringify({ roomId: parts[1], action: parts[0] }));
+            this.socket.emit('room', { roomId: parts[1], action: parts[0] });
         }
         catch (e) { console.log(e) }
     }
 
     async manageMessage() {
         try {
-            stdout.destroy();
-            let { message } = await this.get({ description: 'Message', name: 'message' });
-            message = message + ' - ' + this.userName;
-            this.socket.emit('message', JSON.stringify({ roomId: this.roomId, message }));
+            process.stdout.destroy();
+            prompt.delimiter = '';
+            this.get({ properties: { message: { description: '\r', name: 'message' } } }, (err, { message }) => {
+                if (err) return console.log(err);
+                message = message + ' - ' + this.userName;
+                this.socket.emit('message', { roomId: this.roomId, message }, () => this.manageMessage());
+            });
         }
         catch (e) {
             console.log(e)
